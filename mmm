@@ -1,0 +1,188 @@
+#!/bin/bash
+
+# **************************************************************************** #
+#                                                                              #
+#                                                         :::      ::::::::    #
+#    MakeMyMakefile                                     :+:      :+:    :+:    #
+#                                                     +:+ +:+         +:+      #
+#    By: rboissel <rboissel@gmail.com>              +#+  +:+       +#+         #
+#                                                 +#+#+#+#+#+   +#+            #
+#    Created: 2019/09/11 13:54:13 by rboissel          #+#    #+#              #
+#    Updated: 2019/09/14 10:59:16 by rboissel         ###   ########.fr        #
+#                                                                              #
+# **************************************************************************** #
+
+# Generate a simple Makefile for your c projects
+# No options madatory
+
+function usage(){
+	printf "\nUsage: ./mmm [\e[4moption argument...\e[0m]\n\n"
+	printf "\t-c compiler (default gcc)\n"
+	printf "\t-f 'flags' (default '-Wall -Wextra -Werror')\n"
+	printf "\t-h 'path/to/header_files' (default '.')\n"
+	printf "\t-i 'path/to/includes' (default '.')\n"
+	printf "\t-n 'executable_name' (default 'a.out')\n"
+	printf "\t-s 'path/to/source_files' (default '.')\n"
+	exit 1
+}
+
+function setCompiler(){
+	CC=$1
+}
+
+function setFlags(){
+	CFLAGS=$1
+}
+
+function setHeaderPath(){
+	HEADER=$1
+}
+
+function setIncludes(){
+	PATH_INC=$1
+}
+
+function setLib(){
+	LIB=$1
+}
+
+function setName(){
+	NAME=$1
+}
+
+function setOutputPath(){
+	OUTPUT_PATH=$1
+	if [ -e $OUTPUT_PATH ]
+	then
+		if ! [ -d $OUTPUT_PATH ]
+		then
+			echo "The output path is not a directory"
+			usage
+		fi
+	else
+		mkdir -p $OUTPUT_PATH
+	fi
+}
+
+function setSourcesPath(){
+	PATH_SRC=$1
+}
+
+# Default values
+NAME="a.out"
+PATH_SRC="."
+PATH_INC="."
+CC="gcc"
+CFLAGS="-Wall -Wextra -Werror"
+PATH_HEAD="."
+OUTPUT_PATH="./"
+LIB=""
+
+if [ $# -ne 0 ]
+then
+	while getopts ":c:f:h:i:l:n:o:s:" option
+	do
+		case $option in
+			c)
+				setCompiler $OPTARG
+				;;
+			f)
+				setFlags $OPTARG
+				;;
+			h)
+				setHeaderPath $OPTARG
+				;;
+			i)
+				setIncludes $OPTARG
+				;;
+			l)
+				setLib $OPTARG
+				;;
+			n)
+				setName $OPTARG
+				;;
+			o)
+				setOutputPath $OPTARG
+				;;
+			s)
+				setSourcesPath $OPTARG
+				;;
+			:)
+				echo "$OPTARG option needs an argument"
+				usage
+				;;
+			\?)
+				echo "$OPTARG: invalid option"
+				usage
+				;;
+		esac
+	done
+fi
+
+
+src_list="$(find $PATH_SRC -maxdepth 1 -name "*.c" \
+	| awk -F'/' -v p=$PATH_SRC '{printf "%s/%s \\", p, $2}' \
+	| awk '{printf "%s \\ \n", $1}')"
+
+if [ -z "$src_list" ]
+then
+	echo "There is no .c files in $PATH_SRC"
+	usage
+fi
+
+header_list="$(find $PATH_SRC -maxdepth 1 -name "*.h")"
+
+if [ -z "$header_list" ]
+then
+	echo "There is no .h files in $PATH_HEAD"
+	usage
+fi
+
+cat > ${OUTPUT_PATH}Makefile << EOF
+NAME = $(echo $NAME)
+PATH_SRC = $(echo $PATH_SRC)
+PATH_INC = $(echo $PATH_INC)
+LIB = $(echo $LIB)
+
+INCLUDES = -I \$(PATH_INC)
+CC = $(echo $CC)
+CFLAGS = $(echo $CFLAGS)
+
+HEADER = $(echo $PATH_HEAD)
+
+RED=\$'\x1b[31m
+GREEN=\$'\x1b[32m
+BLUE=\$'\x1b[34m
+END=\$'\x1b[0m
+
+SRC = $(echo $src_list)
+
+OBJ = \$(SRC:.c=.o)
+
+all: \$(NAME)
+
+\$(NAME): \$(OBJ)
+	@\$(CC) \$(CFLAGS) \$(OBJ) \$(LIB) -o \$(NAME)
+	@echo "\$(GREEN)[ ✔ ] \$(NAME) created\$(END)"
+
+%.o: %.c
+	@\$(CC) \$(CFLAGS) -c \$< -o \$@
+	@printf '\033[0m[ ✔ ] %s\n\033[0m' '$<'
+
+clean:
+	@rm -f \$(OBJ)
+	@echo '"\$(BLUE)[ ✔ ] \$(NAME) object files deleted\$(END)"
+
+fclean: clean
+	@rm -f \$(NAME)
+	@echo "\$(BLUE)[ ✔ ] \$(NAME) deleted\$(END)"
+
+re: fclean all
+
+run:
+	./\$(NAME)
+
+.PHONY: all clean fclean re run
+EOF
+
+exit 0
